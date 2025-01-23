@@ -84,7 +84,7 @@ void setUpDevices()
 {
 if(N >= 1024)
 {
-	BlockSize.x = 1024;
+	BlockSize.x = 1024; //Whenever N is greater than or equal to 1024 (the max number of threads in a single block) it sets the blockSize to 1024
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
@@ -92,7 +92,7 @@ if(N >= 1024)
 	GridSize.y = 1;
 	GridSize.z = 1;
 }
-else
+else // when N is less than 1024 this sets the blockSize to whatever the value of N is.
 {
 	BlockSize.x = N;
 	BlockSize.y = 1;
@@ -147,14 +147,20 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 {
 	int id = threadIdx.x;
 
-	if (n > 1024)
+	if (n > 1024) // this checks if the size of the vectors exceeds the max number of threads per block
 	{
 		for( int i = id; i < n; i += blockDim.x)
+					// this for loop allows each thread to process multiple indices of the vectors
+					//int i=id ensures that the thread starts processing from its unique index 
+					 //i < n ensures that the thread does not exceed the vector bounds
+					//i+= blockDim.x means that after processing 1 index the thread will jump forward by blockDim.x
+					//(total number of threads) to process the next chunk of the workload
+			//if N was 2048 then thread 0 would process indices 0 and 1024 and thread 1 will process 1 and 1025 and so on.
 		{
 			c[i] = a[i] + b[i];
 		}
 	}
-	else
+	else // handles the cases when n is less than 1024 and we dont need to have multiple indeces per thread
 	{
 	c[id] = a[id] + b[id];
 	}
@@ -247,6 +253,11 @@ int main()
 	
 	// Making sure the GPU and CPU wiat until each other are at the same place.
 	cudaDeviceSynchronize();
+
+//I switched the cudaDeviceSync and the cudaMemcpyAsync lines becausethe cudaDevicesynch ensures that all previous GPU tasks are completed before 
+//moving foreward (things like kernel executions and writing memory to the GPU ensuring that the GPU has the final correct results. Once the 
+//once sync makes sure all GPU tasks are done cudamemcpyAsync transfers the fully updated data from the GPU to CPU.
+//so by synchronizing first you are ensuring that the memory copy is operating on valid and complete data.
 
 	// Copy Memory from GPU to CPU	
 	cudaMemcpyAsync(C_CPU, C_GPU, N*sizeof(float), cudaMemcpyDeviceToHost);
