@@ -114,13 +114,16 @@ __global__ void dotProductGPU(float *a, float *b, float *C_GPU, int n)
 		C_GPU[id] = a[id] * b[id];
 	}
 	
-	__syncthreads();
+	__syncthreads(); //Ensures that all threads in the block have completed their multiplication before proceeding.
 	
-	if(id == 0)
+	if(id == 0) //Ensures that only one thread (thread 0) performs the next step.
+	//Prevents multiple threads from simultaneously trying to sum the results,
 	{
-		for(int i = 1; i < n; i++)
+		for(int i = 1; i < n; i++) //Since thread 0 is responsible for accumulating the final sum, it iterates through all other computed values.
 		{
-			C_GPU[0] += C_GPU[i];
+			C_GPU[0] += C_GPU[i]; //Adds all elements of C_GPU into the first element, C_GPU[0].
+						//This reduces the array into a single sum.
+						//C_GPU[0] contains the dot product (sum of element-wise multiplications).
 		}
 	}
 }
