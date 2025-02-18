@@ -15,7 +15,7 @@
 #include <stdio.h>
 
 // Defines
-#define N 1738000 // Length of the vector
+#define N 17380 // Length of the vector
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
