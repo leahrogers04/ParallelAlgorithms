@@ -1,13 +1,13 @@
 #include <sys/time.h>
 #include <stdio.h>
 
-// Defines
-#define N 1001 // Length of the vector
+
+#define N 1001 // Length of  vector
 #define B 200
 #define BLOCK_SIZE 10
-// Global variables
-float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
-float *A_GPU, *B_GPU, *C_GPU; //GPU pointers
+
+float *A_CPU, *B_CPU, *C_CPU; 
+float *A_GPU, *B_GPU, *C_GPU; 
 float DotCPU, DotGPU;
 dim3 BlockSize; //This variable will hold the Dimensions of your blocks
 dim3 GridSize; //This variable will hold the Dimensions of your grid
@@ -98,51 +98,53 @@ __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 {
    
     int tid = threadIdx.x;
-    __shared__ float s[BLOCK_SIZE];
+    __shared__ float dot[BLOCK_SIZE];
     int id;
-    int stride = blockDim.x*gridDim.x;
-    int lastiteration = ((n-1)/stride)   +1;
+    int stride = blockDim.x*gridDim.x; //total number of threads in the grid. This is like the step size for how much the threads should step over the array for each blocks iteration
+    int maxIteration = ((n-1)/stride)   +1; // this formula accounts for the last elements that might not fill up an entire block
     int fold;
-    for (int i=0; i<=lastiteration;i++)
-{
-    id = tid+stride*i +blockDim.x*blockIdx.x;
-    if (i<lastiteration)
+    for (int i=0; i<=maxIteration;i++) //this loops through all the strides and each iteration is for a set of elements that a block will work on
     {
-        s[tid] = a[id]*b[id];
-   
-    fold = blockDim.x;
-    while(fold>1)
-    {
-        if(tid<fold/2)
-        {
-            s[tid] += s[fold-1-tid];
+        id = tid+stride*i +blockDim.x*blockIdx.x;
+            if (i < maxIteration) //checks if the current iteration is less than the last one and if it is it multiplies a and b and stores it in dot
+            {
+                dot[tid] = a[id]*b[id];
+           
+                fold = blockDim.x;
+                while(fold>1) //this loop reduces or folds the values in the shared mem array dot so that the end result is a single float
+                                //it will keep going until the only value left is dot[0]
+                {
+                    if(tid<fold/2)
+                    {
+                        dot[tid] += dot[fold-1-tid]; //adding the value from the end of the block. thread 0 will be added to the last thread and so on
+                    }
+                    fold = (fold+1)/2; // updating fold and adding 1 so that it is always an odd number. fold will keep getting cut in half until it equals 1 which will hold the final sum dot
+                }
         }
-        fold = (fold+1)/2;
-    }
-    }
-    else if (i==lastiteration)
+    else if (i == maxIteration) //if the id is still in the bounds of the array then it will calc the dot product for the remaining elements
+                                //but if id is bigger than n then the thread stores 0's in dot so that all the threads still get processed.
     {
         if(id<n)
         {
-            s[tid] = a[id]*b[id];
+            dot[tid] = a[id]*b[id];
         }
         else
         {
-            s[tid] = 0;//padding with zeroes
+            dot[tid] = 0;//padding with zeroes
         }
-        fold = blockDim.x;
+        fold = blockDim.x; //resetting fold so that it does it all again with the new number of blocks
         while(fold>1)
         {
             if(tid<fold/2)
             {
-                s[tid] += s[fold-1-tid];
+                dot[tid] += dot[fold-1-tid];
             }
             fold = (fold+1)/2;
         }
     }
     if(tid==0)
     {
-    atomicAdd(&c[0],s[tid]);
+    atomicAdd(&c[0],dot[tid]);
     }
 }
 }
