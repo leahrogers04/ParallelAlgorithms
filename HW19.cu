@@ -140,11 +140,11 @@ void setup()
     	float d, dx, dy, dz;
     	int test;
     	
-    	BlockSize.x = N;
+    BlockSize.x = 1024;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = 1;
+	GridSize.x = (N-1)/BlockSize.x + 1;
 	GridSize.y = 1;
 	GridSize.z = 1;
     	
