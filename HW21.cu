@@ -258,17 +258,21 @@ void setup()
 		M[i] = 1.0;
 	}
 
+	cudaStream_t stream;
+	cudaStreamCreate(&stream);
 	
-	cudaMemcpyAsync(PGPU, P, N*sizeof(float4), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(PGPU, P, N*sizeof(float4), cudaMemcpyHostToDevice, stream);
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaMemcpyAsync(VGPU, V, N*sizeof(float4), cudaMemcpyHostToDevice, stream);
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaMemcpyAsync(FGPU, F, N*sizeof(float4), cudaMemcpyHostToDevice, stream);
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice, stream);
 	cudaErrorCheck(__FILE__, __LINE__);
 
-	cudaMemcpyAsync(VGPU, V, N*sizeof(float4), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(FGPU, F, N*sizeof(float4), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
+	cudaStreamSynchronize(stream);
+	cudaStreamDestroy(stream);
 
-	cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
 	
 	printf("\n To start timing type s.\n");
 }
@@ -302,7 +306,7 @@ __global__ void getForces(float4 *p, float4 *v, float4 *f, float *m, float g, fl
 		p_sh[threadIdx.x].z = p[threadIdx.x + k*blockDim.x].z;
 		__syncthreads();
 		
-		//#pragma unroll 4
+		#pragma unroll 4
 		for(int j = 0; j < blockDim.x; j++)
 		 {
 			// int isNotSelf = (i != j + blockDim.x * blockIdx.x);
@@ -317,58 +321,73 @@ __global__ void getForces(float4 *p, float4 *v, float4 *f, float *m, float g, fl
 				dy = p_sh[j].y - p[i].y;
 				dz = p_sh[j].z - p[i].z;
 				d2 = dx*dx + dy*dy + dz*dz;
-				d  = rsqrt(d2);
+				d  = rsqrtf(d2);
 				
-			force_mag  = ((g*m[i]*m_sh[j])/(d2) - (h*m[i]*m_sh[j])/(d2*d2)); //* isNotSelf;
-			f[i].x += force_mag*dx/d;
-			f[i].y += force_mag*dy/d;
-			f[i].z += force_mag*dz/d;
+			//force_mag  = ((g*m[i]*m_sh[j])/(d2) - (h*m[i]*m_sh[j])/(d2*d2)); //* isNotSelf;
+			float inv_d2 = 1.0f / d2;
+			float inv_d4 = inv_d2 * inv_d2;
+			force_mag  =(g * m[i] * m_sh[j]) * inv_d2 - (h * m[i] * m_sh[j]) * inv_d4;
+			f[i].x += force_mag*dx*d;
+			f[i].y += force_mag*dy*d;
+			f[i].z += force_mag*dz*d;
 			}
 		}
 	}
 }
 
 
-__global__ void moveBodies(float4 *p, float4 *v, float4 *f, float *m, float damp, float dt, float t, int n)
+__global__ void moveBodies1(float4 *p, float4 *v, float4 *f, float *m, float damp, float dt, int n)
 {	
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
 	if (i >=n) return;
 	
-	if(t == 0.0f)
-	{
-		// v[i].x += ((f[i].x-damp*v[i].x) * invM[i])*dt/2.0f;
+	// v[i].x += ((f[i].x-damp*v[i].x) * invM[i])*dt/2.0f;
 		// v[i].y += ((f[i].y-damp*v[i].y) * invM[i])*dt/2.0f;
 		// v[i].z += ((f[i].z-damp*v[i].z) * invM[i])*dt/2.0f;
 		v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt/2.0f;
 		v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt/2.0f;
 		v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt/2.0f;
-	}
-	else
-	{
-		// v[i].x += ((f[i].x-damp*v[i].x) * invM[i])*dt;
-		// v[i].y += ((f[i].y-damp*v[i].y) * invM[i])*dt;
-		// v[i].z += ((f[i].z-damp*v[i].z) * invM[i])*dt;
-		v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt;
-		v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt;
-		v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt;
-	}
+
 
 	p[i].x += v[i].x*dt;
 	p[i].y += v[i].y*dt;
 	p[i].z += v[i].z*dt;
 }
 
+__global__ void moveBodies2(float4 *p, float4 *v, float4 *f, float *m, float damp, float dt, int n)
+{	
+	int i = threadIdx.x + blockDim.x*blockIdx.x;
+	if (i >=n) return;
+	
+
+	
+		v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt;
+		v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt;
+		v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt;
+	
+
+	p[i].x += v[i].x*dt;
+	p[i].y += v[i].y*dt;
+	p[i].z += v[i].z*dt;
+}
 void nBody()
 {
 	int    drawCount = 0; 
 	float  t = 0.0;
 	float dt = 0.0001;
 
+	getForces<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, G, H, N);
+		cudaErrorCheck(__FILE__, __LINE__);
+		moveBodies1<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, Damp, dt, N);
+		cudaErrorCheck(__FILE__, __LINE__);
+		t += dt;
+		drawCount++;
+	
 	while(t < RUN_TIME)
 	{
 		getForces<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, G, H, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, Damp, dt, t, N);
+		moveBodies2<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, Damp, dt, N);
 		cudaErrorCheck(__FILE__, __LINE__);
 		if(drawCount == DRAW_RATE) 
 		{
@@ -382,6 +401,23 @@ void nBody()
 		t += dt;
 		drawCount++;
 	}
+}
+
+void cleanUp()
+{
+	cudaFree(MGPU);
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaFree(PGPU);
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaFree(VGPU);
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaFree(FGPU);
+	cudaErrorCheck(__FILE__, __LINE__);
+	
+	free(M);
+	free(P);
+	free(V);
+	free(F);
 }
 
 int main(int argc, char** argv)
