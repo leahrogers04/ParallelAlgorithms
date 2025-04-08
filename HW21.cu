@@ -1,4 +1,4 @@
-// Name: 
+// Name: Leah Rogers
 // Optimizing nBody GPU code more. 
 // nvcc HW21.cu -o temp -lglut -lm -lGLU -lGL -use_fast_math
 
@@ -288,12 +288,12 @@ __global__ void getForces(float4 *p, float4 *v, float4 *f, float *m, float g, fl
 	
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
 	
-	if(i < n)
-	{
+	// if(i < n)
+	// {
 		p_sh[threadIdx.x] = p[i];
 		m_sh[threadIdx.x] = m[i];
 		__syncthreads();
-	}
+	// }
 
 	f[i].x = 0.0f;
 	f[i].y = 0.0f;
@@ -306,7 +306,7 @@ __global__ void getForces(float4 *p, float4 *v, float4 *f, float *m, float g, fl
 		p_sh[threadIdx.x].z = p[threadIdx.x + k*blockDim.x].z;
 		__syncthreads();
 		
-		#pragma unroll 4
+		#pragma unroll 32
 		for(int j = 0; j < blockDim.x; j++)
 		 {
 			// int isNotSelf = (i != j + blockDim.x * blockIdx.x);
@@ -320,13 +320,14 @@ __global__ void getForces(float4 *p, float4 *v, float4 *f, float *m, float g, fl
 				dx = p_sh[j].x - p[i].x;
 				dy = p_sh[j].y - p[i].y;
 				dz = p_sh[j].z - p[i].z;
-				d2 = dx*dx + dy*dy + dz*dz;
-				d  = rsqrtf(d2);
+				d2 = 1.0f/(dx*dx + dy*dy + dz*dz);
+				d  = sqrt(d2);
 				
 			//force_mag  = ((g*m[i]*m_sh[j])/(d2) - (h*m[i]*m_sh[j])/(d2*d2)); //* isNotSelf;
-			float inv_d2 = 1.0f / d2;
-			float inv_d4 = inv_d2 * inv_d2;
-			force_mag  =(g * m[i] * m_sh[j]) * inv_d2 - (h * m[i] * m_sh[j]) * inv_d4;
+			// float inv_d2 = 1.0f / d2;
+			// float inv_d4 = inv_d2 * inv_d2;
+			float inv_d4 = d2 * d2;
+			force_mag  =(g * m[i] * m_sh[j]) * d2 - (h * m[i] * m_sh[j]) * inv_d4;
 			f[i].x += force_mag*dx*d;
 			f[i].y += force_mag*dy*d;
 			f[i].z += force_mag*dz*d;
@@ -339,7 +340,7 @@ __global__ void getForces(float4 *p, float4 *v, float4 *f, float *m, float g, fl
 __global__ void moveBodies1(float4 *p, float4 *v, float4 *f, float *m, float damp, float dt, int n)
 {	
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
-	if (i >=n) return;
+	// if (i >=n) return;
 	
 	// v[i].x += ((f[i].x-damp*v[i].x) * invM[i])*dt/2.0f;
 		// v[i].y += ((f[i].y-damp*v[i].y) * invM[i])*dt/2.0f;
@@ -357,7 +358,7 @@ __global__ void moveBodies1(float4 *p, float4 *v, float4 *f, float *m, float dam
 __global__ void moveBodies2(float4 *p, float4 *v, float4 *f, float *m, float damp, float dt, int n)
 {	
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
-	if (i >=n) return;
+	// if (i >=n) return;
 	
 
 	
