@@ -200,6 +200,7 @@ void CleanUp()
 	free(B_CPU); 
 	free(C_CPU);
 	
+	cudaSetDevice(0);
 	cudaFree(A_GPU1); 
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaFree(B_GPU1); 
@@ -207,6 +208,7 @@ void CleanUp()
 	cudaFree(C_GPU1);
 	cudaErrorCheck(__FILE__, __LINE__);
 
+	cudaSetDevice(1);
 	cudaFree(A_GPU2);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaFree(B_GPU2);
@@ -244,6 +246,8 @@ int main()
 	// Adding on the GPU
 	gettimeofday(&start, NULL);
 	
+	cudaSetDevice(0);
+	
 	// Copy Memory from CPU to GPU		
 	cudaMemcpyAsync(A_GPU1, A_CPU, halfN*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -258,6 +262,7 @@ int main()
 	cudaMemcpyAsync(C_CPU, C_GPU1, halfN*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
+	cudaSetDevice(1);
 	cudaMemcpyAsync(A_GPU2, A_CPU + halfN, otherHalfN*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(B_GPU2, B_CPU + halfN, otherHalfN*sizeof(float), cudaMemcpyHostToDevice);
