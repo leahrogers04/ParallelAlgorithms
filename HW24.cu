@@ -32,7 +32,7 @@
 #define RUN_TIME 10.0
 
 // Globals
-int N;
+int N, N1, N2;
 float3 *P, *V, *F;
 float *M; 
 float3 *PGPU1, *VGPU1, *FGPU1;
@@ -43,8 +43,8 @@ float Damp;
 dim3 BlockSize;
 dim3 GridSize1;
 dim3 GridSize2;
-int halfN = (N+1)/2; // This is the half of the vector length
-int otherHalfN = N - halfN; // This is the other half of the vector length
+//int halfN = (N+1)/2; // This is the half of the vector length
+//int otherHalfN = N - halfN; // This is the other half of the vector length
 
 
 // Function prototypes
@@ -75,13 +75,13 @@ void drawPicture()
 	glClear(GL_COLOR_BUFFER_BIT);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	
-	cudaSetDevice(0); // Set the first GPU
-	cudaMemcpyAsync(PGPU1, P, halfN*sizeof(float3), cudaMemcpyHostToDevice);	
-	cudaErrorCheck(__FILE__, __LINE__);
+	// cudaSetDevice(0); // Set the first GPU
+	// cudaMemcpyAsync(PGPU1, P, N1*sizeof(float3), cudaMemcpyHostToDevice);	
+	// cudaErrorCheck(__FILE__, __LINE__);
 
-	cudaSetDevice(1); // Set the second GPU
-	cudaMemcpyAsync(PGPU2, P, otherHalfN*sizeof(float3), cudaMemcpyDeviceToHost);
-	cudaErrorCheck(__FILE__, __LINE__);
+	// cudaSetDevice(1); // Set the second GPU
+	// cudaMemcpyAsync(PGPU2, P, N2*sizeof(float3), cudaMemcpyDeviceToHost);
+	// cudaErrorCheck(__FILE__, __LINE__);
 	
 	glColor3d(1.0,1.0,0.5);
 	for(i=0; i<N; i++)
@@ -97,21 +97,42 @@ void drawPicture()
 
 void setup()
 {
+	int count = 0;
+	cudaGetDeviceCount(&count);
+	if (count < 2)
+	{
+		printf("you only have %d 2 GPU's stupid idiot loser \n", count);
+		exit (0);
+
+	}
     	float randomAngle1, randomAngle2, randomRadius;
     	float d, dx, dy, dz;
     	int test;
     	
     	N = 1000;
+		N1 = N/2; // This is the half of the vector length
+		N2 = N - N1; // This is the other half of the vector length
+		
+		// float H = 10.0f;
+		// float G = 10.0f;
+		
+		// float LJP = 2.0;
+		// float LJQ = 4.0;
+		
+		float GlobeRadius, Diameter, Radius;
+		
+		// This is the layout of the parallel space we will be using.
+		BlockSize.x = BLOCK_SIZE;
     	
     BlockSize.x = BLOCK_SIZE;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize1.x = (halfN + BlockSize.x - 1) / BlockSize.x; //Makes enough blocks to deal with the whole vector.
+	GridSize1.x = (N1 - 1) / BlockSize.x + 1; //Makes enough blocks to deal with the whole vector.
 	GridSize1.y = 1;
 	GridSize1.z = 1;
 	
-	GridSize2.x = (otherHalfN + BlockSize.x - 1) / BlockSize.x; //Makes enough blocks to deal with the whole vector.
+	GridSize2.x = (N2 - 1) / BlockSize.x + 1; //Makes enough blocks to deal with the whole vector.
 	GridSize2.y = 1;
 	GridSize2.z = 1;
 	
@@ -195,34 +216,39 @@ void setup()
 		M[i] = 1.0;
 	}
 	cudaSetDevice(0); // Set the first GPU
-	cudaMemcpyAsync(PGPU1, P, halfN*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(PGPU1, P, N1*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(VGPU1, V, halfN*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(VGPU1, V, N1*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(FGPU1, F, halfN*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(FGPU1, F, N1*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(MGPU1, M, halfN*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(MGPU1, M, N1*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 
 	cudaSetDevice(1); // Set the second GPU
-	cudaMemcpyAsync(PGPU2, P+halfN, otherHalfN*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(PGPU2, P, N2*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(VGPU2, V+halfN, otherHalfN*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(VGPU2, V, N2*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(FGPU2, F+halfN, otherHalfN*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(FGPU2, F+N1, N2*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(MGPU2, M+halfN, otherHalfN*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(MGPU2, M+N1, N2*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	
-	// cudaMemcpyAsync(PGPU, P, N*sizeof(float3), cudaMemcpyHostToDevice);
-	// cudaErrorCheck(__FILE__, __LINE__);
-	// cudaMemcpyAsync(VGPU, V, N*sizeof(float3), cudaMemcpyHostToDevice);
-	// cudaErrorCheck(__FILE__, __LINE__);
-	// cudaMemcpyAsync(FGPU, F, N*sizeof(float3), cudaMemcpyHostToDevice);
-	// cudaErrorCheck(__FILE__, __LINE__);
-	// cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice);
-	// cudaErrorCheck(__FILE__, __LINE__);
-}
+
+// 	int canAccessPeer01, canAccessPeer10;
+// cudaDeviceCanAccessPeer(&canAccessPeer01, 0, 1);
+// cudaDeviceCanAccessPeer(&canAccessPeer10, 1, 0);
+
+// if (canAccessPeer01) {
+//     cudaSetDevice(0);
+//     cudaDeviceEnablePeerAccess(1, 0);
+// }
+
+// if (canAccessPeer10) {
+//     cudaSetDevice(1);
+//     cudaDeviceEnablePeerAccess(0, 0);
+// }
+ }
 
 __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n)
 {
@@ -290,18 +316,47 @@ void nBody()
 	while(t < RUN_TIME)
 	{
 		cudaSetDevice(0); // Set the first GPU
-		getForces<<<GridSize1,BlockSize>>>(PGPU1, VGPU1, FGPU1, MGPU1, G, H, halfN);
+		getForces<<<GridSize1,BlockSize>>>(PGPU1, VGPU1, FGPU1, MGPU1, G, H, N1);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize1,BlockSize>>>(PGPU1, VGPU1, FGPU1, MGPU1, Damp, dt, t, halfN);
+		moveBodies<<<GridSize1,BlockSize>>>(PGPU1, VGPU1, FGPU1, MGPU1, Damp, dt, t, N1);
 		cudaErrorCheck(__FILE__, __LINE__);
 
 		cudaSetDevice(1); // Set the second GPU
-		getForces<<<GridSize2,BlockSize>>>(PGPU2, VGPU2, FGPU2, MGPU2, G, H, otherHalfN);
+		getForces<<<GridSize2,BlockSize>>>(PGPU2, VGPU2, FGPU2, MGPU2, G, H, N2);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize2,BlockSize>>>(PGPU2, VGPU2, FGPU2, MGPU2, Damp, dt, t, otherHalfN);
+		moveBodies<<<GridSize2,BlockSize>>>(PGPU2, VGPU2, FGPU2, MGPU2, Damp, dt, t, N2);
 		cudaErrorCheck(__FILE__, __LINE__);
+
+		cudaDeviceSynchronize(); // Wait for the GPU to finish before moving on.
+
+		cudaSetDevice(0); // Set the first GPU	
+		cudaDeviceSynchronize(); // Wait for the GPU to finish before moving on.
+
+		cudaSetDevice(0); // Set the first GPU
+		cudaMemcpyAsync(PGPU2, PGPU1, N1*sizeof(float3), cudaMemcpyDeviceToDevice);
+		cudaErrorCheck(__FILE__, __LINE__);
+
+		cudaSetDevice(1); // Set the second GPU
+		cudaMemcpyAsync(PGPU1+N1, PGPU2+N1, N2*sizeof(float3), cudaMemcpyDeviceToDevice);
+		cudaErrorCheck(__FILE__, __LINE__);
+
+		cudaSetDevice(0); // Set the first GPU
+		cudaDeviceSynchronize(); // Wait for the GPU to finish before moving on.
+		cudaSetDevice(1); // Set the second GPU	
+		cudaDeviceSynchronize(); // Wait for the GPU to finish before moving on.
 		if(drawCount == DRAW_RATE) 
 		{	
+			cudaSetDevice(0); // Set the first GPU
+			cudaMemcpyAsync(P, PGPU1, N1*sizeof(float3), cudaMemcpyDeviceToHost);
+			cudaErrorCheck(__FILE__, __LINE__);
+
+			cudaSetDevice(1); // Set the second GPU
+			cudaMemcpyAsync(P+N1,PGPU2+N1, N2*sizeof(float3), cudaMemcpyDeviceToHost);
+			cudaErrorCheck(__FILE__, __LINE__);
+
+			cudaDeviceSynchronize(); // Wait for the GPU to finish before moving on.
+			cudaSetDevice(0); // Set the first GPU
+			cudaDeviceSynchronize(); // Wait for the GPU to finish before moving on.
 			drawPicture();
 			drawCount = 0;
 		}
