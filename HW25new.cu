@@ -1,4 +1,4 @@
-// Name:
+// Name: Leah Rogers
 // nBody run on all available GPUs. 
 // nvcc HW25.cu -o temp -lglut -lm -lGLU -lGL
 
