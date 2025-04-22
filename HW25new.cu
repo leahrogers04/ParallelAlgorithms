@@ -53,7 +53,7 @@ int *offsetGPU;
 void cudaErrorCheck(const char *, int);
 void drawPicture();
 void setup();
-__global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int, int);
+__global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int);
 __global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int, int);
 void nBody();
 int main(int, char**);
@@ -145,13 +145,13 @@ void setup()
 		for(int i = 0; i < NumberOfGpus; i++)
 		{
 			cudaSetDevice(i);
-			cudaMalloc((void**)&PGPU[i], bodiesPerGPU*sizeof(float3));
+			cudaMalloc((void**)&PGPU[i], N*sizeof(float3));
 			cudaErrorCheck(__FILE__, __LINE__);
 			cudaMalloc((void**)&VGPU[i], bodiesPerGPU*sizeof(float3));
 			cudaErrorCheck(__FILE__, __LINE__);
 			cudaMalloc((void**)&FGPU[i], bodiesPerGPU*sizeof(float3));
 			cudaErrorCheck(__FILE__, __LINE__);
-			cudaMalloc((void**)&MGPU[i], bodiesPerGPU*sizeof(float));
+			cudaMalloc((void**)&MGPU[i], N*sizeof(float));
 			cudaErrorCheck(__FILE__, __LINE__);
 		}
 	
@@ -222,13 +222,13 @@ void setup()
 	for (int i = 0; i < NumberOfGpus; i++)
 	{
 	cudaSetDevice(i);
-	cudaMemcpyAsync(PGPU[i], P, bodiesPerGPU*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(PGPU[i], P, N*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(VGPU[i], V, bodiesPerGPU*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(FGPU[i], F, bodiesPerGPU*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(MGPU[i], M, bodiesPerGPU*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(MGPU[i], M, N*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	}
 		
@@ -236,14 +236,14 @@ void setup()
 }
 
 
-__global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n, int bodiesPerGpu, int offset)
+__global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n, int offset,int NumberOfGpus)
 {
 	float dx, dy, dz,d,d2;
 	float force_mag;
 	//int offset;
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
 	int id = i + offset;
-	 
+	int bodiesPerGPU = n/NumberOfGpus;
 	
 	if(i < bodiesPerGPU)
 	{
@@ -308,9 +308,9 @@ void nBody()
 		for(int i = 0; i < NumberOfGpus; i++)
 		{
 			cudaSetDevice(i);
-			getForces<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], G, H, N, bodiesPerGPU, offsetGPU[i]);
+			getForces<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], G, H, N, offsetGPU[i], NumberOfGpus);
 			cudaErrorCheck(__FILE__, __LINE__);
-			moveBodies<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], Damp, dt, t, N, bodiesPerGPU, offsetGPU[i]);
+			moveBodies<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], Damp, dt, t, N, offsetGPU[i]);
 			cudaErrorCheck(__FILE__, __LINE__);
         }
         for(int i = 0; i < NumberOfGpus; i++)
