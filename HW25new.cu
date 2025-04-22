@@ -54,7 +54,7 @@ void cudaErrorCheck(const char *, int);
 void drawPicture();
 void setup();
 __global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int, int);
-__global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int, int, int);
+__global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int, int);
 void nBody();
 int main(int, char**);
 
@@ -132,7 +132,7 @@ void setup()
 				NGPU[i] += N % NumberOfGpus;
 			}
 		}
-	}
+	
 		
 		BlockSize.x = BLOCK_SIZE;
 		BlockSize.y = 1;
@@ -145,13 +145,13 @@ void setup()
 		for(int i = 0; i < NumberOfGpus; i++)
 		{
 			cudaSetDevice(i);
-			cudaMalloc((void**)&PGPU[i], N*sizeof(float3));
+			cudaMalloc((void**)&PGPU[i], bodiesPerGPU*sizeof(float3));
 			cudaErrorCheck(__FILE__, __LINE__);
-			cudaMalloc((void**)&VGPU[i], N*sizeof(float3));
+			cudaMalloc((void**)&VGPU[i], bodiesPerGPU*sizeof(float3));
 			cudaErrorCheck(__FILE__, __LINE__);
-			cudaMalloc((void**)&FGPU[i], N*sizeof(float3));
+			cudaMalloc((void**)&FGPU[i], bodiesPerGPU*sizeof(float3));
 			cudaErrorCheck(__FILE__, __LINE__);
-			cudaMalloc((void**)&MGPU[i], N*sizeof(float));
+			cudaMalloc((void**)&MGPU[i], bodiesPerGPU*sizeof(float));
 			cudaErrorCheck(__FILE__, __LINE__);
 		}
 	
@@ -219,29 +219,31 @@ void setup()
 		M[i] = 1.0;
 	}
 	
-	for (int i = 0; i < numberOfGpus; i++)
+	for (int i = 0; i < NumberOfGpus; i++)
 	{
 	cudaSetDevice(i);
-	cudaMemcpyAsync(PGPU[i], P, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(PGPU[i], P, bodiesPerGPU*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(VGPU[i], V, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(VGPU[i], V, bodiesPerGPU*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(FGPU[i], F, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(FGPU[i], F, bodiesPerGPU*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(MGPU[i], M, N*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(MGPU[i], M, bodiesPerGPU*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	}
 		
 	printf("\n Setup finished.\n");
 }
 
-__global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n, int bodiesPerGpu)
+
+__global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n, int bodiesPerGpu, int offset)
 {
 	float dx, dy, dz,d,d2;
 	float force_mag;
-	int offset;
+	//int offset;
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
 	int id = i + offset;
+	 
 	
 	if(i < bodiesPerGPU)
 	{
@@ -268,9 +270,9 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 	}
 }
 
-__global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int n,)
+__global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int n,int offset)
 {
-	int offset;
+	//int offset;
 	int i = threadIdx.x + blockDim.x*blockIdx.x + offset;
 	int id = i + offset;
 	
@@ -306,9 +308,9 @@ void nBody()
 		for(int i = 0; i < NumberOfGpus; i++)
 		{
 			cudaSetDevice(i);
-			getForces<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], G, H, N, bodiesPerGPU, OffsetGPU[i]);
+			getForces<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], G, H, N, bodiesPerGPU, offsetGPU[i]);
 			cudaErrorCheck(__FILE__, __LINE__);
-			moveBodies<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], Damp, dt, t, N, bodiesPerGPU, OffsetGPU[i]);
+			moveBodies<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], Damp, dt, t, N, bodiesPerGPU, offsetGPU[i]);
 			cudaErrorCheck(__FILE__, __LINE__);
         }
         for(int i = 0; i < NumberOfGpus; i++)
@@ -327,7 +329,7 @@ void nBody()
 					if(gpu != dest)
 					{
 						cudaSetDevice(dest);
-						cudaMemcpyAsync(PGPU[dest] + OffsetGPU[gpu], PGPU[gpu] + OffsetGPU[gpu], N*sizeof(float3), cudaMemcpyDeviceToDevice);
+						cudaMemcpyAsync(PGPU[dest] + offsetGPU[gpu], PGPU[gpu] + offsetGPU[gpu], bodiesPerGPU*sizeof(float3), cudaMemcpyDeviceToDevice);
 						cudaErrorCheck(__FILE__, __LINE__);
 					}
 				}
