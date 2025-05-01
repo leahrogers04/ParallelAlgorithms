@@ -18,7 +18,7 @@
 #define WALKS 10
 #define STEPS 10000
 // Globals
-float MidPoint = (float)UINT_MAX/2.0f;
+float MidPoint = (float)UINT_MAX/2.0f; //using UINT_MAX bc curand() generates numbers from 0 to UINT_MAX so using RAND_MAX wouldnt correctly represmt the midpoint of the range 0 to UINT_MAX.
 int *GPUfinalPositions; // Pointer for final positions on GPU
 int *CPUfinalPositions;
 dim3 BlockSize;
@@ -49,8 +49,19 @@ void setupDevices()
 	GridSize.y = 1;
 	GridSize.z = 1;
 
-	//allocating memory
-	CPUfinalPositions = (int *)malloc(WALKS * sizeof(int));
+	//allocate memory on the CPU for an array that will store the final positions
+	//of each random walk after the GPU has finished its computations
+
+	//type casted to (int *) because the result of malloc is a void * and so you have to do that to indicate the allocated mem will be used as an array of integers.
+	// malloc allocates memory on the CPU heap. 
+	//WALKS is 10 so it alllocates mem for an array of 10 ints
+	//sizeof(int) ensures the correct number of bytes are allocated for each int
+	CPUfinalPositions = (int *)malloc(WALKS * sizeof(int)); 
+
+	//cudaMalloc allocates memory on the GPU heap.
+	//GPUfinalPositions is a pointer to an int that hold the adress of the allocated mem on the GPU.
+	// & is used to pass the adress of the pointer to cudaMAlloc so it can update it w the adress of the allocated mem on the GPU.
+	//WALKS * sizeof(int) is the number of bytes to allocate on the GPU.
 	cudaMalloc(&GPUfinalPositions, WALKS * sizeof(int)); // Allocate memory on the GPU for final positions
 	cudaErrorCheck(__FILE__, __LINE__); // Check for errors after memory allocation
 }
