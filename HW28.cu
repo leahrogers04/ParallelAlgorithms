@@ -117,7 +117,8 @@ int main(int argc, char** argv)
 	int numberOfRandomSteps = STEPS; // initializing # oof steps for each walk
 
 
-	//launching randomwalk kernal on GPU
+	//launching randomwalk kernal on GPU.
+	//time(NULL) generates a seed for the random # generator bases on the current time to make sure the random walks are different with each run.
 	randomWalk<<<GridSize, BlockSize>>>(GPUfinalPositions, time(NULL), numberOfRandomSteps, MidPoint); // Launch kernel
 	cudaErrorCheck(__FILE__, __LINE__); 
 	cudaDeviceSynchronize(); // Synchronize to ensure all threads have finished before copying results back to CPU
