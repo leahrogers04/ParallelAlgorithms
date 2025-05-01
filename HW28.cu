@@ -1,4 +1,4 @@
-// Name:
+// Name: Leah Rogers
 // CPU random walk. 
 // nvcc HW28.cu -o temp - lcurand
 
@@ -18,13 +18,42 @@
 #define WALKS 10
 #define STEPS 10000
 // Globals
-//int NumberOfRandomSteps = 10000;
-//float MidPoint = (float)RAND_MAX/2.0f;
+float MidPoint = (float)UINT_MAX/2.0f;
+int *GPUfinalPositions; // Pointer for final positions on GPU
+int *CPUfinalPositions;
+dim3 BlockSize;
+dim3 GridSize;
 
 // Function prototypes
-//int getRandomDirection();
-//__global__ void randomWalk(int, unsigned long long, int, float);
-//int main(int, char**);
+void cudaErrorCheck(const char *, int);
+void setupDevices();
+__global__ void randomWalk(int, unsigned long long, int, float);
+int main(int, char**);
+
+void cudaErrorCheck(const char *file, int line)
+{
+	cudaError_t err = cudaGetLastError();
+	if (err != cudaSuccess) {
+		fprintf(stderr, "CUDA error at %s:%d: %s\n", file, line, cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+}
+
+void setupDevices()
+{
+	BlockSize.x = WALKS; // Number of threads per block
+	BlockSize.y = 1; 
+	BlockSize.z = 1; 
+	
+	GridSize.x = 1; 
+	GridSize.y = 1;
+	GridSize.z = 1;
+
+	//allocating memory
+	CPUfinalPositions = (int *)malloc(WALKS * sizeof(int));
+	cudaMalloc(&GPUfinalPositions, WALKS * sizeof(int)); // Allocate memory on the GPU for final positions
+	cudaErrorCheck(__FILE__, __LINE__); // Check for errors after memory allocation
+}
 
 __global__ void randomWalk(int *finalPositions, unsigned long long seed, int numberOfRandomSteps, float midPoint)
 {
@@ -65,20 +94,19 @@ __global__ void randomWalk(int *finalPositions, unsigned long long seed, int num
 
 int main(int argc, char** argv)
 {
-	int CPUfinalPositions[WALKS];
-	int *GPUfinalPositions;
+	setupDevices(); 
 
 	int numberOfRandomSteps = STEPS;
-	float MidPoint = (float)UINT_MAX / 2.0f; // Midpoint for random number generation
 
-	cudaMalloc(&GPUfinalPositions, WALKS * sizeof(int)); // Allocate memory on the GPU for final positions
-
-	randomWalk<<<1, WALKS>>>(GPUfinalPositions, time(NULL), numberOfRandomSteps, MidPoint); // Launch kernel
+	randomWalk<<<GridSize, BlockSize>>>(GPUfinalPositions, time(NULL), numberOfRandomSteps, MidPoint); // Launch kernel
+	cudaErrorCheck(__FILE__, __LINE__); 
 	cudaDeviceSynchronize();
+	cudaErrorCheck(__FILE__, __LINE__); 
 
+	//copying the results back to the CPU
 	cudaMemcpy(CPUfinalPositions, GPUfinalPositions, WALKS * sizeof(int), cudaMemcpyDeviceToHost); // Copy results back to CPU
-
-	//srand(time(NULL));
+	cudaErrorCheck(__FILE__, __LINE__);
+	
 	
 	printf(" Final positions of the random walks:\n");
 	for(int i = 0; i < WALKS; i++)
