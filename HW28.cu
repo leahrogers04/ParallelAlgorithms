@@ -68,18 +68,25 @@ void setupDevices()
 
 __global__ void randomWalk(int *finalPositions, unsigned long long seed, int numberOfRandomSteps, float midPoint)
 {
-	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	int id = threadIdx.x + blockIdx.x * blockDim.x; //blockIdx.x * blockDim.x calculates the offset of the blocks making sure the threads in different blocks have unique ids.
+	// adding threadIdx.x gives the global thread id for each thread in the block.
 
-	if (id < WALKS)
+	if (id < WALKS) // ensures only threads with ID less that WALKS execute the random walk logic
 	{
-		curandState state;
-		curand_init(seed + id, 0, 0, &state);
+		curandState state; //curandState is a structure that stores the state of the random number generator so that each thread generates its own sequence of random numbers.
 
-		int initialPosition = 0;
+		curand_init(seed + id, 0, 0, &state); // initializes random # generator state for each thread
+		//seed + id is to make sure the random #s are different for each thread.
+		//0 is the sequence # and allows for the generation of multiple random # sequences.
+		//I set it to 0 because I only need 1 random # sequence per thread.
+		//2nd 0 is the offset and specifies the starting point of the random # sequence. It is set to 0 so it starts at the beginning.
+		//&state passes the adress of curandState to the curand_init function so it can update the state of the random # generator.
 
-		for (int i = 0; i < numberOfRandomSteps; i++)
+		int initialPosition = 0; // initializing starting pos to 0
+
+		for (int i = 0; i < numberOfRandomSteps; i++) // loops through #ofrandomsteps. each iteration is 1 step in the random walk.
 		{
-			unsigned int randomNumber = curand(&state);
+			unsigned int randomNumber = curand(&state); //
 			int step = (randomNumber < midPoint) ? -1 : 1; //curand() returns a random number in [0, 1)
 			initialPosition += step; //updating current position with each step
 		}
