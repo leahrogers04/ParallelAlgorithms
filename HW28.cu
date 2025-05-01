@@ -112,28 +112,30 @@ __global__ void randomWalk(int *finalPositions, unsigned long long seed, int num
 
 int main(int argc, char** argv)
 {
-	setupDevices(); 
+	setupDevices(); //calling setupDevices function
 
-	int numberOfRandomSteps = STEPS;
+	int numberOfRandomSteps = STEPS; // initializing # oof steps for each walk
 
+
+	//launching randomwalk kernal on GPU
 	randomWalk<<<GridSize, BlockSize>>>(GPUfinalPositions, time(NULL), numberOfRandomSteps, MidPoint); // Launch kernel
 	cudaErrorCheck(__FILE__, __LINE__); 
-	cudaDeviceSynchronize();
+	cudaDeviceSynchronize(); // Synchronize to ensure all threads have finished before copying results back to CPU
 	cudaErrorCheck(__FILE__, __LINE__); 
 
-	//copying the results back to the CPU
+	//copying the results of random walks from GPU to CPU
 	cudaMemcpy(CPUfinalPositions, GPUfinalPositions, WALKS * sizeof(int), cudaMemcpyDeviceToHost); // Copy results back to CPU
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	
 	printf(" Final positions of the random walks:\n");
-	for(int i = 0; i < WALKS; i++)
+	for(int i = 0; i < WALKS; i++) //loops through CPUfinalPositions array to print the final pos of each walk.
 	{
 		printf("Walk %d: %d\n", i, CPUfinalPositions[i]); // Print final positions of each walk
 	}
 	
-	cudaFree(GPUfinalPositions); // Free GPU memory
+	cudaFree(GPUfinalPositions); // Free memory allocated on GPU for GPUfinalPositions array. This prevents memory leaks.
 	
-	return 0;
+	return 0; //returns 0 to OS to indicate a successful run.
 }
 
