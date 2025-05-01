@@ -86,11 +86,11 @@ __global__ void randomWalk(int *finalPositions, unsigned long long seed, int num
 
 		for (int i = 0; i < numberOfRandomSteps; i++) // loops through #ofrandomsteps. each iteration is 1 step in the random walk.
 		{
-			unsigned int randomNumber = curand(&state); //
-			int step = (randomNumber < midPoint) ? -1 : 1; //curand() returns a random number in [0, 1)
-			initialPosition += step; //updating current position with each step
+			unsigned int randomNumber = curand(&state); //generates random unsigned int from 0 to UINT_MAX. state makes sure each thread genertes its own random # sequence.
+			int step = (randomNumber < midPoint) ? -1 : 1; //if random# < midpoint is TRUE step is -1 if its false step = 1.
+			initialPosition += step; //updating current position by adding step value -1 or 1
 		}
-		finalPositions[id] = initialPosition; //store the final position in the array
+		finalPositions[id] = initialPosition; //store the final position for each thread.
 	}
 }
 /*
